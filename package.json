@@ -1,0 +1,18 @@
+{
+  "name": "building-diff",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "@turf/turf": "*",
+    "@mapbox/tile-reduce": "*",
+    "@mapbox/tile-cover": "*",
+    "@mapbox/tilebelt": "*"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ian Dees <ian.dees@gmail.com>",
+  "license": "MIT"
+}
