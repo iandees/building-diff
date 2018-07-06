@@ -13,15 +13,18 @@ function difference(setA, setB) {
     return _difference;
 }
 
-module.exports = function(data, tile, writeData, done) {
-  var bingCover = new Set();
-  for (let feature of data.buildings.bingbuildings.features) {
-    var polyCover = cover.indexes(feature.geometry, coverLimits);
-    for (let p of polyCover) {
-      bingCover.add(p);
+function intersection(setA, setB) {
+    var _intersection = new Set();
+    for (var elem of setB) {
+        if (setA.has(elem)) {
+            _intersection.add(elem);
+        }
     }
-  }
+    return _intersection;
+}
 
+module.exports = function(data, tile, writeData, done) {
+  // Find coverage for the existing OSM buildings
   var osmCover = new Set();
   for (let feature of data.osm.osm.features) {
     if (feature.geometry.type !== 'Polygon' || !feature.properties.building) {
@@ -33,19 +36,28 @@ module.exports = function(data, tile, writeData, done) {
     }
   }
 
-  var bingMinusOsm = difference(bingCover, osmCover);
-  var osmMinusBing = difference(osmCover, bingCover);
-
-  // console.log("bing: " + bingCover.size + " osm: " + osmCover.size + " bing-osm: " + bingMinusOsm.size + " osm-bing: " + osmMinusBing.size);
-
   var features = [];
-  for (let i of bingMinusOsm) {
-    var t = tilebelt.quadkeyToTile(i);
-    var g = tilebelt.tileToGeoJSON(t);
-    features.push(turf.feature(g));
+
+  // For each of the Bing buildings, check to see if its coverage intersects
+  // with the OSM coverage. If it does not, then output the Bing building.
+  for (let feature of data.buildings.bingbuildings.features) {
+    var bingCover = new Set(cover.indexes(feature.geometry, coverLimits));
+    var bingOsmIntersect = intersection(bingCover, osmCover);
+    var coverIntersectRatio = bingOsmIntersect.size / bingCover.size;
+
+    if (coverIntersectRatio > 0.4) {
+      continue;
+    } else {
+      feature.properties.coverRatio = coverIntersectRatio;
+      features.push(feature);
+      // writeData(JSON.stringify(feature) + '\n');
+      // for (let c of bingCover) {
+      //   osmCover.delete(c);
+      // }
+    }
   }
+
   var fc = turf.featureCollection(features);
-  // fc = turf.dissolve(fc);
   writeData(JSON.stringify(fc) + '\n');
 
   done(null, null);
