@@ -7,7 +7,8 @@
     "@turf/turf": "*",
     "@mapbox/tile-reduce": "*",
     "@mapbox/tile-cover": "*",
-    "@mapbox/tilebelt": "*"
+    "@mapbox/tilebelt": "*",
+    "geojson-rbush": "*"
   },
   "devDependencies": {},
   "scripts": {

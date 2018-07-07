@@ -3,7 +3,8 @@
 var turf = require('@turf/turf');
 var cover = require('@mapbox/tile-cover');
 var tilebelt = require('@mapbox/tilebelt');
-var coverLimits = {min_zoom: 19, max_zoom: 19};
+var rbush = require('geojson-rbush').default;
+var coverLimits = {min_zoom: 24, max_zoom: 24};
 
 function difference(setA, setB) {
     var _difference = new Set(setA);
@@ -24,36 +25,40 @@ function intersection(setA, setB) {
 }
 
 module.exports = function(data, tile, writeData, done) {
-  // Find coverage for the existing OSM buildings
-  var osmCover = new Set();
+  // Load an rbush with the existing OSM buildings
+  var osmCover = rbush();
   for (let feature of data.osm.osm.features) {
     if (feature.geometry.type !== 'Polygon' || !feature.properties.building) {
       continue;
     }
-    var polyCover = cover.indexes(feature.geometry, coverLimits);
-    for (let p of polyCover) {
-      osmCover.add(p);
-    }
+    osmCover.insert(feature);
   }
 
   var features = [];
 
-  // For each of the Bing buildings, check to see if its coverage intersects
-  // with the OSM coverage. If it does not, then output the Bing building.
-  for (let feature of data.buildings.bingbuildings.features) {
-    var bingCover = new Set(cover.indexes(feature.geometry, coverLimits));
-    var bingOsmIntersect = intersection(bingCover, osmCover);
-    var coverIntersectRatio = bingOsmIntersect.size / bingCover.size;
+  for (let bFeature of data.buildings.bingbuildings.features) {
+    var bingOsmIntersect = osmCover.search(bFeature);
 
-    if (coverIntersectRatio > 0.4) {
+    if (bingOsmIntersect.features.length == 0) {
+      // No intersection in the rbush means we should just write out the building
+      features.push(bFeature);
       continue;
-    } else {
-      feature.properties.coverRatio = coverIntersectRatio;
-      features.push(feature);
-      // writeData(JSON.stringify(feature) + '\n');
-      // for (let c of bingCover) {
-      //   osmCover.delete(c);
-      // }
+    } else if (bingOsmIntersect.features.length > 0) {
+      var bCentroid = turf.centroid(bFeature);
+
+      var matchFound = false;
+      for (let oFeature of bingOsmIntersect.features) {
+        var oCentroid = turf.centroid(oFeature);
+        var dist = turf.distance(bCentroid, oCentroid);
+        if (dist < 0.05) {
+          matchFound = true;
+          break;
+        }
+      }
+
+      if (!matchFound) {
+        features.push(bFeature);
+      }
     }
   }
 
